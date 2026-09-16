@@ -30,14 +30,20 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">Browse listings</h1>
+      <h5 className="mb-6 text-2xl font-bold text-gray-900">Browse listings</h5>
 
       {!listings || listings.length === 0 ? (
-        <p className="text-gray-500">No listings yet — be the first to add one.</p>
+        <p className="text-gray-500">
+          No listings yet — be the first to add one.
+        </p>
       ) : (
         <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {listings.map((listing) => (
-            <Link key={listing._id} href={`/listings/${listing._id}`} className="group">
+            <Link
+              key={listing._id}
+              href={`/listings/${listing._id}`}
+              className="group"
+            >
               <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-gray-100">
                 <Image
                   src={listing.images[0]}
@@ -45,10 +51,15 @@ export default function HomePage() {
                   fill
                   sizes="(max-width: 768px) 50vw, 200px"
                   className="object-cover transition-transform group-hover:scale-105"
+                  loading="eager"
                 />
               </div>
-              <h3 className="mt-2 truncate text-sm font-medium text-gray-900">{listing.title}</h3>
-              <p className="text-sm font-semibold text-gray-900">${listing.price}</p>
+              <h3 className="mt-2 truncate text-sm font-medium text-gray-900">
+                {listing.title}
+              </h3>
+              <p className="text-sm font-semibold text-gray-900">
+                ${listing.price}
+              </p>
               <p className="text-xs text-gray-500">{listing.condition}</p>
             </Link>
           ))}

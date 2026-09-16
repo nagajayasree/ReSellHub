@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useParams, useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import imageCompression from 'browser-image-compression';
 import axios from 'axios';
-import api from '../../lib/api';
-import { useAuth } from '../../context/AuthContext';
+// import api from '@/lib/api';
+// import { useAuth } from '@/context/AuthContext';
+import api from '../../../lib/api';
+import { useAuth } from '../../../context/AuthContext';
 
 const CATEGORIES = [
   'Clothing',
@@ -24,24 +26,31 @@ const CATEGORIES = [
 ];
 const CONDITIONS = ['New with tags', 'Like new', 'Good', 'Fair', 'Well loved'];
 
-interface ImageFile {
+interface Listing {
+  _id: string;
+  title: string;
+  description: string;
+  category: string;
+  condition: string;
+  price: number;
+  images: string[];
+}
+
+interface NewImageFile {
   file: File;
   previewUrl: string;
 }
 
-export default function NewListingPage() {
-  const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
-  const queryClient = useQueryClient();
+async function fetchListing(id: string): Promise<Listing> {
+  const res = await api.get(`/api/listings/${id}`);
+  return res.data;
+}
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [condition, setCondition] = useState(CONDITIONS[0]);
-  const [price, setPrice] = useState('');
-  const [images, setImages] = useState<ImageFile[]>([]);
-  const [compressing, setCompressing] = useState(false);
-  const [error, setError] = useState('');
+export default function EditListingPage() {
+  const { user, loading: authLoading } = useAuth();
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+  const router = useRouter();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -49,7 +58,40 @@ export default function NewListingPage() {
     }
   }, [authLoading, user, router]);
 
-  const createListing = useMutation({
+  const { data: listing, isLoading } = useQuery({
+    queryKey: ['listing', id],
+    queryFn: () => fetchListing(id),
+    enabled: !!id,
+  });
+
+  if (authLoading || !user || isLoading || !listing) {
+    return null;
+  }
+
+  // Only mounts once `listing` exists, so the form's useState calls
+  // below read the real values on their first render — no sync effect needed.
+  return <EditListingForm id={id} listing={listing} />;
+}
+
+function EditListingForm({ id, listing }: { id: string; listing: Listing }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const [title, setTitle] = useState(listing.title);
+  const [description, setDescription] = useState(listing.description);
+  const [category, setCategory] = useState(listing.category);
+  const [condition, setCondition] = useState(listing.condition);
+  const [price, setPrice] = useState(String(listing.price));
+  const [existingImages, setExistingImages] = useState<string[]>(
+    listing.images,
+  );
+  const [newImages, setNewImages] = useState<NewImageFile[]>([]);
+  const [compressing, setCompressing] = useState(false);
+  const [error, setError] = useState('');
+
+  const totalImages = existingImages.length + newImages.length;
+
+  const updateListing = useMutation({
     mutationFn: async () => {
       const formData = new FormData();
       formData.append('title', title);
@@ -57,14 +99,16 @@ export default function NewListingPage() {
       formData.append('category', category);
       formData.append('condition', condition);
       formData.append('price', price);
-      images.forEach((img) => formData.append('images', img.file));
+      formData.append('existingImages', JSON.stringify(existingImages));
+      newImages.forEach((img) => formData.append('images', img.file));
 
-      const res = await api.post('/api/listings', formData);
+      const res = await api.patch(`/api/listings/${id}`, formData);
       return res.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['listings'] });
-      router.push('/');
+      queryClient.invalidateQueries({ queryKey: ['listing', id] });
+      router.push('/listings/mine');
     },
     onError: (err) => {
       const message = axios.isAxiosError(err)
@@ -76,8 +120,7 @@ export default function NewListingPage() {
 
   async function handleFileSelect(fileList: FileList | null) {
     if (!fileList) return;
-
-    const remainingSlots = 5 - images.length;
+    const remainingSlots = 5 - totalImages;
     const selected = Array.from(fileList).slice(0, remainingSlots);
 
     setCompressing(true);
@@ -97,7 +140,7 @@ export default function NewListingPage() {
           };
         }),
       );
-      setImages((prev) => [...prev, ...compressed]);
+      setNewImages((prev) => [...prev, ...compressed]);
     } catch (err) {
       console.error(err);
       setError('Could not process one or more images');
@@ -106,8 +149,12 @@ export default function NewListingPage() {
     }
   }
 
-  function removeImage(index: number) {
-    setImages((prev) => {
+  function removeExistingImage(index: number) {
+    setExistingImages((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function removeNewImage(index: number) {
+    setNewImages((prev) => {
       URL.revokeObjectURL(prev[index].previewUrl);
       return prev.filter((_, i) => i !== index);
     });
@@ -115,24 +162,20 @@ export default function NewListingPage() {
 
   function handleSubmit() {
     setError('');
-    if (images.length === 0) {
-      setError('Add at least one photo');
+    if (totalImages === 0) {
+      setError('Keep at least one photo');
       return;
     }
     if (!title || !description || !price) {
       setError('Fill in all fields');
       return;
     }
-    createListing.mutate();
-  }
-
-  if (authLoading || !user) {
-    return null;
+    updateListing.mutate();
   }
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">List an item</h1>
+      <h1 className="mb-6 text-2xl font-bold text-gray-900">Edit listing</h1>
 
       <form
         onSubmit={(e) => {
@@ -152,23 +195,19 @@ export default function NewListingPage() {
 
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-700">
-            Photos ({images.length}/5)
+            Photos ({totalImages}/5)
           </label>
           <div className="grid grid-cols-5 gap-3">
-            {images.map((img, i) => (
+            {existingImages.map((url, i) => (
               <div
-                key={img.previewUrl}
+                key={url}
                 className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview, not an optimizable remote image */}
-                <img
-                  src={img.previewUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
+                {/* eslint-disable-next-line @next/next/no-img-element -- existing remote URL */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
                 <button
                   type="button"
-                  onClick={() => removeImage(i)}
+                  onClick={() => removeExistingImage(i)}
                   className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
                 >
                   ×
@@ -176,7 +215,28 @@ export default function NewListingPage() {
               </div>
             ))}
 
-            {images.length < 5 && (
+            {newImages.map((img, i) => (
+              <div
+                key={img.previewUrl}
+                className="group relative aspect-square overflow-hidden rounded-lg border border-gray-200"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview */}
+                <img
+                  src={img.previewUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeNewImage(i)}
+                  className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+
+            {totalImages < 5 && (
               <label className="flex aspect-square cursor-pointer items-center justify-center rounded-lg border border-dashed border-gray-300 text-sm text-gray-400 hover:border-gray-400">
                 {compressing ? '...' : '+ Add'}
                 <input
@@ -287,10 +347,10 @@ export default function NewListingPage() {
 
         <button
           type="submit"
-          disabled={createListing.isPending || compressing}
+          disabled={updateListing.isPending || compressing}
           className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
         >
-          {createListing.isPending ? 'Publishing...' : 'Publish listing'}
+          {updateListing.isPending ? 'Saving...' : 'Save changes'}
         </button>
       </form>
     </main>
