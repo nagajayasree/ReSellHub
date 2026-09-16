@@ -2,10 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { connectDB } from './config/db.js';
-
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import listingRoutes from './routes/listings.js';
+import conversationRoutes from './routes/conversations.js';
 
 dotenv.config();
 
@@ -20,6 +20,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 const PORT = process.env.PORT || 5000;
 

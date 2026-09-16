@@ -63,6 +63,13 @@ export default function Navbar() {
                   >
                     My Listings
                   </Link>
+                  <Link
+                    href="/messages"
+                    onClick={() => setMenuOpen(false)}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    My Messages
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
