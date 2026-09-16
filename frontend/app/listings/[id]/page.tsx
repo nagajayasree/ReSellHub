@@ -1,10 +1,11 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useParams, useRouter } from 'next/navigation';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import Image from 'next/image';
 import { useState } from 'react';
 import api from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 
 interface Listing {
   _id: string;
@@ -28,6 +29,8 @@ export default function ListingDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const [activeImage, setActiveImage] = useState(0);
+  const { user } = useAuth();
+  const router = useRouter();
 
   const {
     data: listing,
@@ -39,6 +42,24 @@ export default function ListingDetailPage() {
     enabled: !!id,
   });
 
+  const startConversation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post('/api/conversations', { listingId: id });
+      return res.data;
+    },
+    onSuccess: (conversation) => {
+      router.push(`/messages/${conversation._id}`);
+    },
+  });
+
+  function handleMessageSeller() {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    startConversation.mutate();
+  }
+
   if (isLoading) {
     return <p className="p-6 text-gray-500">Loading...</p>;
   }
@@ -46,6 +67,8 @@ export default function ListingDetailPage() {
   if (isError || !listing) {
     return <p className="p-6 text-gray-500">Listing not found.</p>;
   }
+
+  const isOwnListing = user?.id === listing.sellerId._id;
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
@@ -113,14 +136,18 @@ export default function ListingDetailPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            disabled
-            title="Coming soon"
-            className="mt-6 w-full rounded-md bg-black px-4 py-3 text-sm font-medium text-white opacity-50"
-          >
-            Message seller
-          </button>
+          {!isOwnListing && (
+            <button
+              type="button"
+              onClick={handleMessageSeller}
+              disabled={startConversation.isPending}
+              className="mt-6 w-full rounded-md bg-black px-4 py-3 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            >
+              {startConversation.isPending
+                ? 'Starting chat...'
+                : 'Message seller'}
+            </button>
+          )}
         </div>
       </div>
     </main>
