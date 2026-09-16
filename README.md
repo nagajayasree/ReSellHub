@@ -1,1 +1,3 @@
-A marketplace where users list secondhand items, message each other directly, and negotiate price through an offer/counter-offer.
+Built ReSellHub, a peer-to-peer resale marketplace where users list items with multi-photo uploads, browse and manage their own listings, and message sellers directly to negotiate a sale through a built-in chat inbox. Implemented JWT-based authentication, image compression and cloud storage for listing photos, and a polling-based near-real-time messaging system between buyers and sellers.
+
+Tech stack: Next.js (React) and Tailwind CSS on the frontend, Node.js/Express with TypeScript on the backend, MongoDB with Mongoose for data modeling, Vercel Blob for image storage, JWT for authentication, and TanStack Query for client-side data fetching and caching.
